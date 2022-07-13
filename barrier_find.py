@@ -20,6 +20,7 @@ from qgis.core import (
     QgsProcessingAlgorithm,
     QgsProcessingParameterFeatureSource,
     QgsProcessingParameterFeatureSink,
+    QgsProcessingParameterNumber,
     QgsMessageLog,
     QgsGeometry,
 )
@@ -59,6 +60,7 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
     # calling from the QGIS console.
 
     INPUT = 'INPUT'
+    INPUT_RADIUS = 'INPUT_RADIUS'
     OUTPUT = 'OUTPUT'
 
     def tr(self, string):
@@ -127,6 +129,18 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
                 [QgsProcessing.TypeVectorAnyGeometry]
             )
         )
+        
+        self.addParameter(
+            QgsProcessingParameterNumber(
+                name=self.INPUT_RADIUS,
+                description=self.tr('Radius'),
+                type=QgsProcessingParameterNumber.Double,
+                defaultValue=0.3,
+                optional=False,
+                minValue=0,
+                maxValue=100
+            )
+        )
 
         # We add a feature sink in which to store our processed features (this
         # usually takes the form of a newly created vector layer when the
@@ -183,6 +197,13 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
         total = 100.0 / source.featureCount() if source.featureCount() else 0
         features = source.getFeatures()
         
+        #input_radius = self.parameterAsNumber(
+        #    parameters,
+        #    self.INPUT_RADIUS,
+        #    context
+        #)
+        
+        radius = 0.3
 
         for current, feature in enumerate(features):
             # Stop the algorithm if cancel button has been clicked
@@ -191,9 +212,8 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
 
             # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
         
+            # 50%
             biotopanteil_ziel = 5000000
-            # ToDo: implement radius
-            radius = 0.3
             
             biotopanteil = feature["biotopanteil_prozent"]
             tile_id = feature["id"]
