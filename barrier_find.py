@@ -11,6 +11,8 @@
 ***************************************************************************
 """
 
+import math
+
 from qgis.PyQt.QtCore import QCoreApplication
 
 from qgis.core import (
@@ -20,7 +22,6 @@ from qgis.core import (
     QgsProcessingAlgorithm,
     QgsProcessingParameterFeatureSource,
     QgsProcessingParameterFeatureSink,
-    QgsProcessingParameterNumber,
     QgsMessageLog,
     QgsGeometry,
 )
@@ -60,7 +61,6 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
     # calling from the QGIS console.
 
     INPUT = 'INPUT'
-    INPUT_RADIUS = 'INPUT_RADIUS'
     OUTPUT = 'OUTPUT'
 
     def tr(self, string):
@@ -129,18 +129,6 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
                 [QgsProcessing.TypeVectorAnyGeometry]
             )
         )
-        
-        self.addParameter(
-            QgsProcessingParameterNumber(
-                name=self.INPUT_RADIUS,
-                description=self.tr('Radius'),
-                type=QgsProcessingParameterNumber.Double,
-                defaultValue=0.3,
-                optional=False,
-                minValue=0,
-                maxValue=100
-            )
-        )
 
         # We add a feature sink in which to store our processed features (this
         # usually takes the form of a newly created vector layer when the
@@ -196,14 +184,8 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
         # get features from source
         total = 100.0 / source.featureCount() if source.featureCount() else 0
         features = source.getFeatures()
+        features2 = source.getFeatures()
         
-        #input_radius = self.parameterAsNumber(
-        #    parameters,
-        #    self.INPUT_RADIUS,
-        #    context
-        #)
-        
-        radius = 0.3
 
         for current, feature in enumerate(features):
             # Stop the algorithm if cancel button has been clicked
@@ -212,74 +194,110 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
 
             # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
         
-            # 50%
+            # in Prozent
             biotopanteil_ziel = 5000000
+            # in Meter
+            radius = 3
             
-            biotopanteil = feature["biotopanteil_prozent"]
-            tile_id = feature["id"]
-            top_coord = int(feature["top"])
-            right_coord = int(feature["right"])
-            bottom_coord = int(feature["bottom"])
-            left_coord = int(feature["left"])
+            biotopanteil = int(feature["biotopanteil_prozent"])
+            tile_id = int(feature["id"])
+            top_coord = float(feature["top"])
+            right_coord = float(feature["right"])
+            bottom_coord = float(feature["bottom"])
+            left_coord = float(feature["left"])
             is_green = "false"
             green_neighbour = "false"
             neighbours = [0,0,0,0,0,0]
-        
+            
+            # koord mittelpunkt
+            mitte_rl = (right_coord-left_coord)/2
+            mitte_rl_berech = left_coord+mitte_rl
+            mitte_ou = (top_coord-bottom_coord)/2
+            mitte_ou_berech = bottom_coord+mitte_ou
+            
+            mittelpunkt = [mitte_rl_berech,mitte_ou_berech]
+            
+            #outer bounds
+            top_bounds_x = radius*math.cos(0)
+            top_bounds_y = radius*math.sin(0)
+            
+            top_right_bounds_x = radius*math.cos(45)
+            top_right_bounds_y = radius*math.sin(45)
+            
+            right_bounds_x = radius*math.cos(90)
+            right_bounds_y = radius*math.sin(90)
+            
+            bottom_right_bounds_x = radius*math.cos(135)
+            bottom_right_bounds_y = radius*math.sin(135)
+            
+            bottom_bounds_x = radius*math.cos(180)
+            bottom_bounds_y = radius*math.sin(180)
+            
+            bottom_left_bounds_x = radius*math.cos(225)
+            bottom_left_bounds_y = radius*math.sin(225)
+            
+            left_bounds_x = radius*math.cos(270)
+            left_bounds_y = radius*math.sin(270)
+            
+            top_left_bounds_x = radius*math.cos(315)
+            top_left_bounds_y = radius*math.sin(315)
             
             if biotopanteil >= biotopanteil_ziel:
+                green_neighbour = "false"
                 is_green = "true"
                 
-                # check surrounding tiles for green
-                for current, inner_feature in enumerate(features):
-                    # item is not current item
-                    if inner_feature["id"] != tile_id:
-                        if inner_feature["biotopanteil_prozent"] >= biotopanteil_ziel:
+                for current, inner_feature in enumerate(features2):
+                    # if item is not current item
+                    if int(inner_feature["id"]) is not tile_id:
+                        # +++ Eventuell besser die weißen Kacheln auf Nachbarn abzufragen +++
+                        # check surrounding tiles for green
+                        if int(inner_feature["biotopanteil_prozent"]) >= biotopanteil_ziel:
                             green_neighbour = "true"
                             
                             # ToDo: Bundle into function
                             # check top neighbour
-                            if top_coord - radius <= int(inner_feature["bottom"]) <= top_coord + radius:
-                                # Problem here!
-                                if right_coord - radius <= int(inner_feature["right"]) <= right_coord + radius:
+                            if float(mittelpunkt[1]) <= float(inner_feature["bottom"]) <= float(top_bounds_y):
+                                if float(mittelpunkt[0]) <= float(inner_feature["right"]) <= float(top_bounds_x):
                                     feedback.pushInfo("oben")
-                                    neighbours[0] = inner_feature["id"]
+                                    neighbours[0] = int(inner_feature["id"])
                             
                             # check top right neighbour
-                            elif top_coord - radius <= int(inner_feature["left"]) <= top_coord + radius:
-                                if right_coord - radius <= inner_feature["bottom"] <= right_coord + radius:
+                            if float(mittelpunkt[1]) <= float(inner_feature["left"]) <= float(top_right_bounds_y):
+                                if float(mittelpunkt[0]) <= float(inner_feature["bottom"]) <= float(top_right_bounds_x):
                                     feedback.pushInfo("rechts oben")
-                                    neighbours[1] = inner_feature["id"]
+                                    neighbours[1] = int(inner_feature["id"])
                                     
                             # check bottom right neighbour
-                            elif bottom_coord - radius <= int(inner_feature["left"]) <= bottom_coord + radius:
-                                if right_coord - radius <= inner_feature["top"] <= right_coord + radius:
+                            if bottom_coord - radius <= float(inner_feature["left"]) <= bottom_coord + radius:
+                                if right_coord - radius <= float(inner_feature["top"]) <= right_coord + radius:
                                     feedback.pushInfo("rechts unten")
-                                    neighbours[2] = inner_feature["id"]
+                                    neighbours[2] = int(inner_feature["id"])
                                     
                             # check bottom neighbour
-                            elif bottom_coord - radius <= int(inner_feature["top"]) <= bottom_coord + radius:
-                                if right_coord - radius <= inner_feature["right"] <= right_coord + radius:
+                            if bottom_coord - radius <= float(inner_feature["top"]) <= bottom_coord + radius:
+                                if right_coord - radius <= float(inner_feature["right"]) <= right_coord + radius:
                                     feedback.pushInfo("unten")
-                                    neighbours[3] = inner_feature["id"]
+                                    neighbours[3] = int(inner_feature["id"])
                                     
                             # check bottom left neighbour
-                            elif bottom_coord - radius <= int(inner_feature["right"]) <= bottom_coord + radius:
-                                if left_coord - radius <= inner_feature["top"] <= left_coord + radius:
+                            if bottom_coord - radius <= float(inner_feature["right"]) <= bottom_coord + radius:
+                                if left_coord - radius <= float(inner_feature["top"]) <= left_coord + radius:
                                     feedback.pushInfo("links unten")
-                                    neighbours[4] = inner_feature["id"]
+                                    neighbours[4] = int(inner_feature["id"])
                             
                             # check top left neighbour
-                            elif top_coord - radius <= int(inner_feature["right"]) <= top_coord + radius:
-                                if left_coord - radius <= inner_feature["bottom"] <= left_coord + radius:
+                            if top_coord - radius <= float(inner_feature["right"]) <= top_coord + radius:
+                                if left_coord - radius <= float(inner_feature["bottom"]) <= left_coord + radius:
                                     feedback.pushInfo("links oben")
-                                    neighbours[5] = inner_feature["id"]
-                
-            feedback.pushInfo("Item ID: "+str(tile_id)+", Biotopanteil: "+str(biotopanteil)+", Grün: "+is_green+", Hat grüne Nachbarn: "+green_neighbour)
+                                    neighbours[5] = int(inner_feature["id"])
+        
+            feedback.pushInfo("Item ID: "+str(tile_id)+" ("+str(mittelpunkt[0])+","+str(mittelpunkt[1])+"), Biotopanteil: "+str(biotopanteil)+", Grün: "+is_green+", Hat grüne Nachbarn: "+green_neighbour)
             
             # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
             # Add a feature in the sink
-            sink.addFeature(feature, QgsFeatureSink.FastInsert)
+            if is_green == "true":
+                sink.addFeature(feature, QgsFeatureSink.FastInsert)
 
             # Update the progress bar
             feedback.setProgress(int(current * total))
